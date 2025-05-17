@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ask a Stranger</title>
+<style>
+  :root {
+    --primary: #6366f1; /* Indigo */
+    --primary-hover: #4f46e5;
+    --background: linear-gradient(to right, #fdfbfb, #ebedee);
+    --box-bg: #ffffff;
+    --text-color: #111827;
+    --subtle-text: #6b7280;
+    --border: #e5e7eb;
+    --shadow: rgba(0, 0, 0, 0.1);
+  }
+  
+  
+
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: var(--background);
+    color: var(--text-color);
+    max-width: 600px;
+    margin: auto;
+    padding: 2rem;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(to right, #6366f1, #9333ea);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .box {
+    background: var(--box-bg);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--shadow);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+  }
+
+  textarea {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    font-size: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    resize: vertical;
+    transition: box-shadow 0.2s;
+  }
+
+  textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+  }
+
+  button {
+    padding: 12px 22px;
+    font-size: 16px;
+    margin-top: 15px;
+    background: linear-gradient(to right, #6366f1, #9333ea);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  button:hover {
+    transform: translateY(-1px);
+    background: linear-gradient(to right, #4f46e5, #7e22ce);
+  }
+
+  #strangerQuestion {
+    font-style: italic;
+    color: var(--subtle-text);
+    margin-top: 10px;
+    font-size: 1.1rem;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 1rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Ask a Stranger</h1>
+
+  <div class="box">
+    <p><strong>Type your question:</strong></p>
+    <textarea id="userQuestion" rows="3" placeholder="What's something you wish you knew earlier?"></textarea>
+    <button onclick="sendQuestion()">Send & Receive</button>
+  </div>
+
+<div class="box" id="strangerBox" style="display: none;">
+  <p><strong>Question from a Stranger:</strong></p>
+  <p id="strangerQuestion">Loading...</p>
+
+  <textarea id="userAnswer" rows="3" placeholder="Write your answer here..."></textarea>
+  <button onclick="submitAnswer()">Submit Answer</button>
+
+  <br /><br />
+  <button onclick="refresh()">Ask Again</button>
+</div>
+
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    // ✅ Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      deleteDoc,
+      doc,
+    } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // ✅ Your Firebase config here (replace with your actual config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDl7FHRB2NBGRsiX3pAYygpzNel7SjnJoE",
+      authDomain: "ask-a-stranger-e35f6.firebaseapp.com",
+      projectId: "ask-a-stranger-e35f6",
+      storageBucket: "ask-a-stranger-e35f6.firebasestorage.app",
+      messagingSenderId: "995946909213",
+      appId: "1:995946909213:web:a4ba009a24fb3c2a2f00f4"
+    };
+
+    // ✅ Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const queue = collection(db, "questions");
+
+    // ✅ Make sendQuestion available to HTML
+    window.sendQuestion = async function () {
+      const myQuestion = document.getElementById("userQuestion").value.trim();
+      if (!myQuestion || myQuestion.length < 10) {
+        return alert("Please enter a more thoughtful question (at least 10 characters).");
+      }
+
+      // Add your question
+      await addDoc(queue, {
+        text: myQuestion,
+        created: Date.now(),
+      });
+	  
+	  document.getElementById("userQuestion").value = ""; // clears input
+
+      // Get all questions
+      const snapshot = await getDocs(queue);
+      const questions = snapshot.docs;
+
+      if (questions.length === 0) {
+	    const fallback = getBackupQuestion();
+        document.getElementById("strangerQuestion").innerText = fallback;
+      } else {
+        const picked = questions[Math.floor(Math.random() * questions.length)];
+        document.getElementById("strangerQuestion").innerText = picked.data().text;
+
+        // Delete the picked question so it’s not repeated
+        await deleteDoc(doc(db, "questions", picked.id));
+      }
+
+      document.getElementById("strangerBox").style.display = "block";
+    };
+	
+	const answers = collection(db, "answers");
+	
+	window.submitAnswer = async function () {
+	  const questionText = document.getElementById("strangerQuestion").innerText;
+	  const userAnswer = document.getElementById("userAnswer").value.trim();
+	  
+	  if (!userAnswer) return alert("Please type your answer!");
+	  
+	  await addDoc(answers, {
+        question: questionText,
+        answer: userAnswer,
+        created: Date.now()
+      });
+	  
+	  alert("✅ Your answer has been submitted anonymously!");
+	  //document.getElementById("userAnswer").value = ""; // clear textarea
+	  document.getElementById("userAnswer").value = ""; // Clear answer box
+      document.getElementById("strangerQuestion").innerText = ""; // Hide stranger question
+	  
+	  // Optional: show a message
+      const box = document.getElementById("strangerBox");
+      box.innerHTML = `
+	    <p><strong>Thanks for answering! ✅</strong></p>
+        <p>Want to ask or answer another one?</p>
+        <button onclick="refresh()">Start Over</button>
+	   `;	
+
+	};  
+	
+    function getBackupQuestion() {
+      const backups = [
+       "What’s a decision you made that changed your life?",
+       "What’s your favorite way to relax after a long day?",
+       "If you could relive one memory, what would it be?",
+       "What motivates you to keep going?",
+       "What’s one thing you wish more people understood?",
+       "What’s a small joy that makes your day better?",
+       "If you had 24 hours of complete freedom, how would you spend it?",
+       "What’s something you’ve never told anyone?",
+       "What’s the kindest thing someone has done for you recently?",
+       "If you could ask one question to the universe, what would it be?"
+    ];
+
+    const randomIndex = Math.floor(Math.random() * backups.length);
+    return backups[randomIndex] + " (from backup)";
+    }
+
+    // ✅ Refresh handler
+    window.refresh = function () {
+      location.reload();
+    };
+  </script>
+</body>
+</html>
